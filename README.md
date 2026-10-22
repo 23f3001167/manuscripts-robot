@@ -4,8 +4,20 @@ React + Vite + React Three Fiber viewer for the white graduate robot, with a
 voice assistant that listens, thinks with a Groq LLM, speaks back, and moves
 its mouth in sync with the reply.
 
-Run `npm install` once, then `npm run dev` and open http://127.0.0.1:5174/.
-`npm run build` creates a production build in dist.
+## Quick start
+
+```bash
+npm install
+copy .env.example .env     # Windows  (macOS/Linux: cp .env.example .env)
+# open .env and paste your own Groq API key
+npm run dev
+```
+
+Open http://127.0.0.1:5174/. `npm run build` creates a production build in `dist`.
+
+`.env` is git-ignored and is **not** part of this repository, so every clone must
+create its own from `.env.example`. The 3D viewer works without a key, but the
+robot cannot answer questions until one is added.
 
 ## Voice assistant setup (Groq LLM)
 
@@ -22,21 +34,40 @@ Continuous conversation: after you click 🎤 once, the robot listens, thinks,
 speaks its answer, and then automatically starts listening again for your next
 question. Click the red ⏹ button whenever you want to end the conversation.
 
-Lip sync: the robot's mouth (`GR_HERO_Smile`) opens and closes in time with the
-spoken reply. This model has no blend shapes or skeleton, so the mouth mesh is
-scaled about its top edge like a jaw. `useLipSync` also supports morph targets
-and jaw bones automatically if a future model includes them.
+Lip sync: the robot's mouth (`GR_HERO_Smile`) is driven by a phoneme track rather
+than a volume guess. `src/hooks/visemes.js` turns the reply into a timed sequence
+of visemes (open "ah", spread "ee", rounded "oo", closed "m/b/p", ...) and
+`useLipSync` eases the mouth mesh through those shapes on three axes — jaw drop,
+lip spread and lip purse — pivoting on the upper lip so it opens downward. The
+shapes are tuned to stay inside the visor.
+
+This model has no blend shapes and no skeleton, so that single mesh is the only
+mouth control available. `useLipSync` still checks for morph targets and jaw
+bones first, so a future model that includes them is picked up automatically.
 
 How it works:
 
 - `src/hooks/useGroq.js` sends the question to Groq (`openai/gpt-oss-120b`) and
   returns the answer. It injects the current date/time and can call a
   `get_current_weather` tool (Open-Meteo, no key needed) for live weather.
-- `src/hooks/useSpeech.js` handles speech-to-text (microphone) and
-  text-to-speech (spoken reply), and streams viseme data while speaking.
-- `src/hooks/useLipSync.js` drives the robot's mouth morph target or jaw bone
-  in real time from that viseme data.
-- `src/components/VoiceInterface.jsx` is the floating mic button and status.
+- `src/hooks/useSpeech.js` handles speech-to-text (microphone to text).
+- `src/hooks/useTTS.js` handles text-to-speech. It tries Groq TTS first and
+  falls back to the browser's `SpeechSynthesis` voice.
+- `src/hooks/visemes.js` converts text into a timed viseme track.
+- `src/hooks/useLipSync.js` drives the mouth from the live playback clock.
+- `src/components/VoiceInterface.jsx` is the floating mic button and status,
+  and runs the hands-free listen/answer loop.
+
+### Optional: Groq TTS voice
+
+By default the browser voice is used. For the higher-quality Groq voice, the
+model `canopylabs/orpheus-v1-english` requires a one-time terms acceptance by an
+org admin at
+https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english
+
+Until that is accepted the app logs a single console note and uses the browser
+voice; lip sync works either way. When Groq audio is available the viseme track
+is scaled to the exact audio duration for tighter sync.
 
 Security:
 
